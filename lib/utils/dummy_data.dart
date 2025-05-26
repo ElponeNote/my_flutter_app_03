@@ -8,13 +8,12 @@ List<Post> generateDummyPosts(int count, {int? startId}) {
   final now = DateTime.now();
   return List.generate(count, (i) {
     final id = (startId ?? 0) + i + 1;
+    final author = faker.person.firstName();
     return Post(
       id: id.toString(),
-      author: faker.person.name().substring(0, 3),
+      author: author.length > 3 ? author.substring(0, 3) : author,
       content: faker.lorem.sentence(),
-      imageUrl: faker.randomGenerator.boolean(0.4)
-          ? null
-          : null, // 이미지 랜덤화 필요시 샘플 경로 추가
+      imageUrl: null, // 샘플 이미지 경로 필요시 추가
       createdAt: now.subtract(Duration(minutes: faker.randomGenerator.integer(120))),
     );
   });
