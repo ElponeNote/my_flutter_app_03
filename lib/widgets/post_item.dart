@@ -1,13 +1,39 @@
 import 'package:flutter/material.dart';
 import '../models/post.dart';
 import 'dart:io';
+import 'package:video_player/video_player.dart';
 
-class PostItem extends StatelessWidget {
+class PostItem extends StatefulWidget {
   final Post post;
-  const PostItem({Key? key, required this.post}) : super(key: key);
+  const PostItem({super.key, required this.post});
+
+  @override
+  State<PostItem> createState() => _PostItemState();
+}
+
+class _PostItemState extends State<PostItem> {
+  VideoPlayerController? _videoController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.post.videoUrl != null) {
+      _videoController = VideoPlayerController.file(File(widget.post.videoUrl!))
+        ..initialize().then((_) {
+          setState(() {});
+        });
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final post = widget.post;
     final initials = post.author.isNotEmpty ? post.author.characters.take(2).toList().join() : '?';
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -16,7 +42,7 @@ class PostItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withAlpha((0.08 * 255).toInt()),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -30,17 +56,26 @@ class PostItem extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Colors.grey[800],
-                  child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
+                post.authorImage != null
+                  ? CircleAvatar(
+                      radius: 20,
+                      backgroundImage: FileImage(File(post.authorImage!)),
+                    )
+                  : CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.grey[800],
+                      child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(post.author, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      if (post.authorBio != null && post.authorBio!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(post.authorBio!, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                      ],
                       const SizedBox(height: 2),
                       Text(_formatTime(post.createdAt), style: TextStyle(color: Colors.grey[400], fontSize: 12)),
                     ],
@@ -99,7 +134,7 @@ class PostItem extends StatelessWidget {
                     ),
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.18),
+                        color: Colors.black.withAlpha((0.18 * 255).toInt()),
                         shape: BoxShape.circle,
                       ),
                       padding: const EdgeInsets.all(16),
@@ -109,12 +144,44 @@ class PostItem extends StatelessWidget {
                 ),
               ),
             ],
+            if (post.videoUrl != null && _videoController != null && _videoController!.value.isInitialized) ...[
+              const SizedBox(height: 14),
+              AspectRatio(
+                aspectRatio: _videoController!.value.aspectRatio,
+                child: Stack(
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    VideoPlayer(_videoController!),
+                    VideoProgressIndicator(_videoController!, allowScrubbing: true),
+                    Positioned(
+                      right: 8,
+                      bottom: 8,
+                      child: FloatingActionButton(
+                        mini: true,
+                        backgroundColor: Colors.black54,
+                        onPressed: () {
+                          setState(() {
+                            if (_videoController!.value.isPlaying) {
+                              _videoController!.pause();
+                            } else {
+                              _videoController!.play();
+                            }
+                          });
+                        },
+                        child: Icon(_videoController!.value.isPlaying ? Icons.pause : Icons.play_arrow),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Align(
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
-                widthFactor: 0.5,
+                widthFactor: 1.0,
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     _ActionIcon(icon: Icons.favorite_border, label: '좋아요'),
@@ -157,6 +224,7 @@ class _ActionIconState extends State<_ActionIcon> with SingleTickerProviderState
   bool _pressed = false;
   late AnimationController _controller;
   late Animation<double> _scaleAnim;
+  bool _liked = false;
 
   @override
   void initState() {
@@ -199,14 +267,60 @@ class _ActionIconState extends State<_ActionIcon> with SingleTickerProviderState
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,
-      onTap: () {},
+      onTap: () {
+        if (widget.label == '좋아요') {
+          setState(() => _liked = !_liked);
+        } else if (widget.label == '댓글') {
+          showDialog(
+            context: context,
+            builder: (context) {
+              final controller = TextEditingController();
+              return AlertDialog(
+                title: const Text('댓글 작성'),
+                content: TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(hintText: '댓글을 입력하세요'),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('취소'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('댓글: \'${controller.text}\'')),
+                      );
+                    },
+                    child: const Text('등록'),
+                  ),
+                ],
+              );
+            },
+          );
+        } else if (widget.label == '리포스트') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('리포스트 되었습니다!')),
+          );
+        } else if (widget.label == '공유') {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('공유'),
+              content: const Text('공유 기능은 실제 배포 시 구현하세요!'),
+              actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('닫기'))],
+            ),
+          );
+        }
+      },
       child: ScaleTransition(
         scale: _scaleAnim,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(28),
-            color: _pressed ? Colors.grey.withOpacity(0.13) : Colors.transparent,
+            color: _pressed ? Colors.grey.withAlpha((0.13 * 255).toInt()) : Colors.transparent,
           ),
           child: Icon(widget.icon, size: 28, color: color),
         ),

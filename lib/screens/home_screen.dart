@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../models/post.dart';
 import '../widgets/post_item.dart';
+import '../utils/dummy_data.dart';
 
-class HomeScreen extends StatefulWidget {
-  final List<Post> posts;
-  const HomeScreen({Key? key, required this.posts}) : super(key: key);
+class HomeScreen extends ConsumerStatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  static const _pageSize = 10;
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const _pageSize = 3;
   late final PagingController<int, Post> _pagingController;
+  List<Post> _lastPosts = [];
 
   @override
   void initState() {
@@ -23,50 +25,65 @@ class _HomeScreenState extends State<HomeScreen> {
     _pagingController.addPageRequestListener(_fetchPage);
   }
 
-  Future<void> _fetchPage(int pageKey) async {
-    try {
-      final newItems = widget.posts.skip(pageKey).take(_pageSize).toList();
-      final isLastPage = newItems.length < _pageSize;
-      if (isLastPage) {
-        _pagingController.appendLastPage(newItems);
-      } else {
-        final nextPageKey = pageKey + newItems.length;
-        _pagingController.appendPage(newItems, nextPageKey);
-      }
-    } catch (error) {
-      _pagingController.error = error;
+  void _fetchPage(int pageKey) {
+    final posts = ref.read(postsProvider);
+    final newItems = posts.skip(pageKey).take(_pageSize).toList();
+    final isLastPage = pageKey + newItems.length >= posts.length;
+    if (isLastPage) {
+      _pagingController.appendLastPage(newItems);
+    } else {
+      final nextPageKey = pageKey + newItems.length;
+      _pagingController.appendPage(newItems, nextPageKey);
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 최초 렌더링 시 postsProvider를 저장
+    _lastPosts = ref.read(postsProvider);
   }
 
   @override
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.posts != widget.posts) {
+    // 위젯 갱신 시 새로고침
+    _pagingController.refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final posts = ref.watch(postsProvider);
+    // postsProvider가 변경되면 피드 새로고침
+    if (_lastPosts != posts) {
+      _lastPosts = posts;
       _pagingController.refresh();
     }
+    return Scaffold(
+      appBar: AppBar(title: const Text('SkoolKorea')),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _pagingController.refresh();
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        child: PagedListView<int, Post>(
+          pagingController: _pagingController,
+          builderDelegate: PagedChildBuilderDelegate<Post>(
+            itemBuilder: (context, post, index) => PostItem(post: post),
+            noItemsFoundIndicatorBuilder: (context) => const Center(child: Text('게시글이 없습니다.')),
+            firstPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
+            newPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
+            firstPageErrorIndicatorBuilder: (context) => const Center(child: Text('피드를 불러오지 못했습니다.')),
+            newPageErrorIndicatorBuilder: (context) => const Center(child: Text('더 불러오지 못했습니다.')),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   void dispose() {
     _pagingController.dispose();
     super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('스쿨코리아 피드')),
-      body: PagedListView<int, Post>(
-        pagingController: _pagingController,
-        builderDelegate: PagedChildBuilderDelegate<Post>(
-          itemBuilder: (context, post, index) => PostItem(post: post),
-          noItemsFoundIndicatorBuilder: (context) => const Center(child: Text('게시글이 없습니다.')),
-          firstPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
-          newPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
-          firstPageErrorIndicatorBuilder: (context) => const Center(child: Text('피드를 불러오지 못했습니다.')),
-          newPageErrorIndicatorBuilder: (context) => const Center(child: Text('더 불러오지 못했습니다.')),
-        ),
-      ),
-    );
   }
 } 

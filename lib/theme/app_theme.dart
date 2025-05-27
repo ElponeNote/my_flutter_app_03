@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 final ThemeData appDarkTheme = ThemeData(
   brightness: Brightness.dark,
   useMaterial3: true,
+  fontFamily: 'Apple SD Gothic Neo', // iOS 한글 시스템 폰트 강제 적용
   scaffoldBackgroundColor: const Color(0xFF181818), // 배경색
   appBarTheme: const AppBarTheme(
     backgroundColor: Color(0xFF181818), // 카드/배경과 통일감 있게 #181818
@@ -42,6 +43,7 @@ final ThemeData appDarkTheme = ThemeData(
 final ThemeData appLightTheme = ThemeData(
   brightness: Brightness.light,
   useMaterial3: true,
+  fontFamily: 'Apple SD Gothic Neo', // iOS 한글 시스템 폰트 강제 적용
   scaffoldBackgroundColor: const Color(0xFFFFFFFF), // 기본 배경색
   appBarTheme: const AppBarTheme(
     backgroundColor: Color(0xFFFFFFFF),

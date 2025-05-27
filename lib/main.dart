@@ -8,7 +8,6 @@ import 'screens/post_screen.dart';
 import 'screens/activity_screen.dart';
 import 'screens/profile_screen.dart';
 import 'widgets/bottom_nav_bar.dart';
-import 'models/post.dart';
 import 'utils/dummy_data.dart';
 
 void main() {
@@ -23,7 +22,7 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
-  ThemeMode _themeMode = ThemeMode.dark;
+  final ThemeMode _themeMode = ThemeMode.dark;
 
   late final GoRouter _router = GoRouter(
     initialLocation: '/home',
@@ -44,12 +43,7 @@ class _MyAppState extends ConsumerState<MyApp> {
           GoRoute(
             path: '/home',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final posts = ref.watch(postsProvider);
-                  return HomeScreen(posts: posts);
-                },
-              ),
+              child: const HomeScreen(),
             ),
           ),
           GoRoute(
