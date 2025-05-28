@@ -49,17 +49,15 @@ class _MyAppState extends ConsumerState<MyApp> {
           GoRoute(
             path: '/search',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: Consumer(
-                builder: (context, ref, _) => const SearchScreen(),
-              ),
+              child: SearchScreen(),
             ),
           ),
           GoRoute(
             path: '/post',
             pageBuilder: (context, state) => NoTransitionPage(
               child: PostScreen(
-                onPost: (post) {
-                  ref.read(postsProvider.notifier).state = [post, ...ref.read(postsProvider)];
+                onPost: (post) async {
+                  await ref.read(postsProvider.notifier).addPost(post);
                   context.go('/home');
                 },
               ),
@@ -68,17 +66,13 @@ class _MyAppState extends ConsumerState<MyApp> {
           GoRoute(
             path: '/activity',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: Consumer(
-                builder: (context, ref, _) => const ActivityScreen(),
-              ),
+              child: ActivityScreen(),
             ),
           ),
           GoRoute(
             path: '/profile',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: Consumer(
-                builder: (context, ref, _) => const ProfileScreen(),
-              ),
+              child: ProfileScreen(),
             ),
           ),
         ],

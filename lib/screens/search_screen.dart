@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../utils/dummy_data.dart';
+import 'post_detail_screen.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -66,6 +67,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   return ListTile(
                                     title: Text(post.content),
                                     subtitle: Text('${post.author} · ${dateFormat.format(post.createdAt)}'),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => PostDetailScreen(post: post),
+                                        ),
+                                      );
+                                    },
                                   );
                                 },
                               ),

@@ -4,6 +4,7 @@ import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../models/post.dart';
 import '../widgets/post_item.dart';
+import '../widgets/skeleton_post_item.dart';
 import '../utils/dummy_data.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -30,7 +31,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final newItems = posts.skip(pageKey).take(_pageSize).toList();
     final isLastPage = pageKey + newItems.length >= posts.length;
     if (isLastPage) {
-      _pagingController.appendLastPage(newItems);
+      // 더미 게시글 3개 추가 생성 (비동기 처리로 provider 수정 타이밍 오류 방지)
+      Future.microtask(() async {
+        final newRandomPosts = generateDummyPosts(_pageSize, startId: posts.length);
+        final updatedPosts = [...posts, ...newRandomPosts];
+        await ref.read(postsProvider.notifier).setPosts(updatedPosts);
+        final moreItems = updatedPosts.skip(pageKey).take(_pageSize).toList();
+        final nextPageKey = pageKey + moreItems.length;
+        _pagingController.appendPage(moreItems, nextPageKey);
+      });
     } else {
       final nextPageKey = pageKey + newItems.length;
       _pagingController.appendPage(newItems, nextPageKey);
@@ -60,7 +69,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _pagingController.refresh();
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('SkoolKorea')),
+      appBar: AppBar(
+        title: const Text('스쿨코리아'),
+        backgroundColor: Colors.black,
+      ),
       body: RefreshIndicator(
         onRefresh: () async {
           _pagingController.refresh();
@@ -71,7 +83,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           builderDelegate: PagedChildBuilderDelegate<Post>(
             itemBuilder: (context, post, index) => PostItem(post: post),
             noItemsFoundIndicatorBuilder: (context) => const Center(child: Text('게시글이 없습니다.')),
-            firstPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
+            firstPageProgressIndicatorBuilder: (context) =>
+              ListView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 3,
+                itemBuilder: (context, index) => const SkeletonPostItem(),
+              ),
             newPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
             firstPageErrorIndicatorBuilder: (context) => const Center(child: Text('피드를 불러오지 못했습니다.')),
             newPageErrorIndicatorBuilder: (context) => const Center(child: Text('더 불러오지 못했습니다.')),

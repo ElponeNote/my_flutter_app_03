@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import '../models/post.dart';
 import 'dart:io';
 import 'package:video_player/video_player.dart';
+import 'package:path/path.dart' as p;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../utils/dummy_data.dart';
+import 'package:intl/intl.dart';
 
-class PostItem extends StatefulWidget {
+class PostItem extends ConsumerStatefulWidget {
   final Post post;
   const PostItem({super.key, required this.post});
 
   @override
-  State<PostItem> createState() => _PostItemState();
+  ConsumerState<PostItem> createState() => _PostItemState();
 }
 
-class _PostItemState extends State<PostItem> {
+class _PostItemState extends ConsumerState<PostItem> {
   VideoPlayerController? _videoController;
 
   @override
@@ -31,10 +35,35 @@ class _PostItemState extends State<PostItem> {
     super.dispose();
   }
 
+  void _toggleLike() async {
+    final posts = ref.read(postsProvider);
+    final idx = posts.indexWhere((p) => p.id == widget.post.id);
+    if (idx == -1) return;
+    final post = posts[idx];
+    final updated = Post(
+      id: post.id,
+      author: post.author,
+      content: post.content,
+      imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl,
+      authorImage: post.authorImage,
+      authorBio: post.authorBio,
+      createdAt: post.createdAt,
+      likes: post.likedByMe ? post.likes - 1 : post.likes + 1,
+      likedByMe: !post.likedByMe,
+      comments: post.comments,
+    );
+    final updatedPosts = [...posts];
+    updatedPosts[idx] = updated;
+    await ref.read(postsProvider.notifier).setPosts(updatedPosts);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final post = widget.post;
+    final posts = ref.watch(postsProvider);
+    final post = posts.firstWhere((p) => p.id == widget.post.id, orElse: () => widget.post);
     final initials = post.author.isNotEmpty ? post.author.characters.take(2).toList().join() : '?';
+    final commentCount = post.comments.length;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -59,7 +88,14 @@ class _PostItemState extends State<PostItem> {
                 post.authorImage != null
                   ? CircleAvatar(
                       radius: 20,
-                      backgroundImage: FileImage(File(post.authorImage!)),
+                      backgroundImage: post.authorImage!.startsWith('http')
+                          ? NetworkImage(post.authorImage!)
+                          : (File(post.authorImage!).existsSync()
+                              ? FileImage(File(post.authorImage!))
+                              : null),
+                      child: (post.authorImage!.startsWith('http') || File(post.authorImage!).existsSync())
+                          ? null
+                          : Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     )
                   : CircleAvatar(
                       radius: 20,
@@ -99,11 +135,19 @@ class _PostItemState extends State<PostItem> {
                         children: [
                           Center(
                             child: InteractiveViewer(
-                              child: Image.file(
-                                File(post.imageUrl!),
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 64, color: Colors.white),
-                              ),
+                              child: post.imageUrl!.startsWith('http')
+                                  ? Image.network(
+                                      post.imageUrl!,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 64, color: Colors.white),
+                                    )
+                                  : (File(post.imageUrl!).existsSync()
+                                      ? Image.file(
+                                          File(post.imageUrl!),
+                                          fit: BoxFit.contain,
+                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 64, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.broken_image, size: 64, color: Colors.white)),
                             ),
                           ),
                           Positioned(
@@ -124,13 +168,23 @@ class _PostItemState extends State<PostItem> {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(post.imageUrl!),
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
-                      ),
+                      child: post.imageUrl!.startsWith('http')
+                          ? Image.network(
+                              post.imageUrl!,
+                              height: 200,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                            )
+                          : (File(post.imageUrl!).existsSync()
+                              ? Image.file(
+                                  File(post.imageUrl!),
+                                  height: 200,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                                )
+                              : const Icon(Icons.broken_image, size: 48)),
                     ),
                     Container(
                       decoration: BoxDecoration(
@@ -184,9 +238,16 @@ class _PostItemState extends State<PostItem> {
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    _ActionIcon(icon: Icons.favorite_border, label: '좋아요'),
+                    _LikeButton(
+                      liked: post.likedByMe,
+                      count: post.likes,
+                      onTap: _toggleLike,
+                    ),
                     const SizedBox(width: 12),
-                    _ActionIcon(icon: Icons.mode_comment_outlined, label: '댓글'),
+                    _CommentButton(
+                      count: commentCount,
+                      onTap: () => _showCommentsModal(context, post),
+                    ),
                     const SizedBox(width: 12),
                     _ActionIcon(icon: Icons.repeat, label: '리포스트'),
                     const SizedBox(width: 12),
@@ -208,6 +269,139 @@ class _PostItemState extends State<PostItem> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}분 전';
     if (diff.inHours < 24) return '${diff.inHours}시간 전';
     return '${time.year}.${time.month}.${time.day}';
+  }
+
+  void _showCommentsModal(BuildContext context, Post post) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final controller = TextEditingController();
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 16, right: 16, top: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.mode_comment_outlined, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('댓글', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const Divider(color: Colors.white24),
+              Expanded(
+                child: post.comments.isEmpty
+                    ? const Center(child: Text('아직 댓글이 없습니다.', style: TextStyle(color: Colors.white54)))
+                    : ListView.builder(
+                        reverse: true,
+                        itemCount: post.comments.length,
+                        itemBuilder: (context, idx) {
+                          final comment = post.comments[post.comments.length - 1 - idx];
+                          final isMine = comment.author == post.author;
+                          return Container(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isMine ? Colors.blueGrey[800] : Colors.grey[850],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(comment.author, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                    const SizedBox(width: 8),
+                                    Text(DateFormat('MM.dd HH:mm').format(comment.createdAt), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(comment.content, style: const TextStyle(color: Colors.white)),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: '댓글을 입력하세요',
+                        hintStyle: const TextStyle(color: Colors.white54),
+                        filled: true,
+                        fillColor: Colors.grey[800],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                      onSubmitted: (value) => _addComment(post, controller, context),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Colors.blueAccent),
+                    onPressed: () => _addComment(post, controller, context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _addComment(Post post, TextEditingController controller, BuildContext context) async {
+    final text = controller.text.trim();
+    if (text.isEmpty) return;
+    final posts = ref.read(postsProvider);
+    final idx = posts.indexWhere((p) => p.id == post.id);
+    if (idx == -1) return;
+    final newComment = Comment(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      author: post.author, // 실제 앱에서는 로그인 사용자명 사용
+      content: text,
+      createdAt: DateTime.now(),
+    );
+    final updated = Post(
+      id: post.id,
+      author: post.author,
+      content: post.content,
+      imageUrl: post.imageUrl,
+      videoUrl: post.videoUrl,
+      authorImage: post.authorImage,
+      authorBio: post.authorBio,
+      createdAt: post.createdAt,
+      likes: post.likes,
+      likedByMe: post.likedByMe,
+      comments: [...post.comments, newComment],
+    );
+    final updatedPosts = [...posts];
+    updatedPosts[idx] = updated;
+    await ref.read(postsProvider.notifier).setPosts(updatedPosts);
+    controller.clear();
+    FocusScope.of(context).unfocus();
   }
 }
 
@@ -324,6 +518,108 @@ class _ActionIconState extends State<_ActionIcon> with SingleTickerProviderState
           ),
           child: Icon(widget.icon, size: 28, color: color),
         ),
+      ),
+    );
+  }
+}
+
+class _LikeButton extends StatefulWidget {
+  final bool liked;
+  final int count;
+  final VoidCallback onTap;
+  const _LikeButton({required this.liked, required this.count, required this.onTap});
+
+  @override
+  State<_LikeButton> createState() => _LikeButtonState();
+}
+
+class _LikeButtonState extends State<_LikeButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+      lowerBound: 0.8,
+      upperBound: 1.0,
+      value: 1.0,
+    );
+    _scaleAnim = _controller;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _animate() {
+    _controller.reverse().then((_) => _controller.forward());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        _animate();
+        widget.onTap();
+      },
+      child: ScaleTransition(
+        scale: _scaleAnim,
+        child: Row(
+          children: [
+            Icon(
+              widget.liked ? Icons.favorite : Icons.favorite_border,
+              color: widget.liked ? Colors.redAccent : Colors.grey[400],
+              size: 28,
+            ),
+            const SizedBox(width: 4),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+              child: Text(
+                '${widget.count}',
+                key: ValueKey(widget.count),
+                style: TextStyle(
+                  color: widget.liked ? Colors.redAccent : Colors.grey[400],
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommentButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _CommentButton({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          const Icon(Icons.mode_comment_outlined, color: Colors.grey, size: 28),
+          const SizedBox(width: 4),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+            child: Text(
+              '$count',
+              key: ValueKey(count),
+              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+          ),
+        ],
       ),
     );
   }

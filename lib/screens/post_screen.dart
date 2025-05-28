@@ -62,14 +62,22 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       return;
     }
     setState(() => _isPosting = true);
-    final profile = ref.read(profileProvider);
+    final profileAsync = ref.read(profileProvider);
+    final profile = profileAsync.value;
+    if (profile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('프로필 정보를 불러올 수 없습니다.')),
+      );
+      setState(() => _isPosting = false);
+      return;
+    }
     final post = Post(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       author: profile.name,
       content: text,
       imageUrl: _imageFile?.path,
       videoUrl: _videoFile?.path,
-      authorImage: profile.imageFile?.path,
+      authorImage: profile.imagePath,
       authorBio: profile.bio,
       createdAt: DateTime.now(),
     );

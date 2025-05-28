@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/post.dart';
 import 'package:faker/faker.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
 final faker = Faker();
 
@@ -27,8 +30,65 @@ List<Post> generateDummyPosts(int count, {int? startId}) {
       content: faker.lorem.sentence(),
       imageUrl: imageUrl,
       createdAt: now.subtract(Duration(minutes: faker.randomGenerator.integer(120))),
+      likes: faker.randomGenerator.integer(100),
+      likedByMe: false,
+      comments: [],
     );
   });
 }
 
-final postsProvider = StateProvider<List<Post>>((ref) => generateDummyPosts(20)); 
+class PostListNotifier extends StateNotifier<List<Post>> {
+  PostListNotifier() : super([]) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = await loadPostsFromPrefs();
+  }
+
+  Future<void> addPost(Post post) async {
+    state = [post, ...state];
+    await savePostsToPrefs(state);
+  }
+
+  Future<void> setPosts(List<Post> posts) async {
+    state = posts;
+    await savePostsToPrefs(state);
+  }
+
+  Future<void> removePost(String id) async {
+    state = state.where((p) => p.id != id).toList();
+    await savePostsToPrefs(state);
+  }
+}
+
+final postsProvider = StateNotifierProvider<PostListNotifier, List<Post>>((ref) => PostListNotifier());
+
+String postsToJson(List<Post> posts) => json.encode(posts.map((e) => e.toJson()).toList());
+List<Post> postsFromJson(String jsonStr) => (json.decode(jsonStr) as List).map((e) => Post.fromJson(e)).toList();
+
+Future<void> savePostsToPrefs(List<Post> posts) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString('posts', postsToJson(posts));
+}
+
+Future<List<Post>> loadPostsFromPrefs() async {
+  final prefs = await SharedPreferences.getInstance();
+  final jsonStr = prefs.getString('posts');
+  List<Post> posts;
+  if (jsonStr != null) {
+    posts = postsFromJson(jsonStr);
+  } else {
+    posts = generateDummyPosts(20);
+  }
+  // 파일 존재하지 않는 로컬 이미지 경로 자동 정리
+  for (final post in posts) {
+    if (post.imageUrl != null && !post.imageUrl!.startsWith('http') && !File(post.imageUrl!).existsSync()) {
+      post.imageUrl = null;
+    }
+    if (post.authorImage != null && !post.authorImage!.startsWith('http') && !File(post.authorImage!).existsSync()) {
+      post.authorImage = null;
+    }
+  }
+  return posts;
+} 
