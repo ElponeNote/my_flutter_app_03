@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/post.dart';
 import 'dart:io';
+import 'dart:convert';
 
 class PostDetailScreen extends StatelessWidget {
   final Post post;
@@ -17,9 +18,7 @@ class PostDetailScreen extends StatelessWidget {
           children: [
             Row(
               children: [
-                post.authorImage != null && File(post.authorImage!).existsSync()
-                    ? CircleAvatar(radius: 24, backgroundImage: FileImage(File(post.authorImage!)))
-                    : const CircleAvatar(radius: 24, child: Icon(Icons.person)),
+                _buildAuthorAvatar(post),
                 const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,5 +42,15 @@ class PostDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildAuthorAvatar(Post post) {
+    if (post.authorImage != null && File(post.authorImage!).existsSync()) {
+      return CircleAvatar(radius: 24, backgroundImage: FileImage(File(post.authorImage!)));
+    } else if (post.authorImageBase64 != null) {
+      return CircleAvatar(radius: 24, backgroundImage: MemoryImage(base64Decode(post.authorImageBase64!)));
+    } else {
+      return const CircleAvatar(radius: 24, child: Icon(Icons.person));
+    }
   }
 } 

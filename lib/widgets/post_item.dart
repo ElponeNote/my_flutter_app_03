@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/post.dart';
 import 'dart:io';
 import 'package:video_player/video_player.dart';
-import 'package:path/path.dart' as p;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../utils/dummy_data.dart';
 import 'package:intl/intl.dart';
+import '../screens/profile_screen.dart';
+import 'dart:convert';
 
 class PostItem extends ConsumerStatefulWidget {
   final Post post;
@@ -42,6 +43,7 @@ class _PostItemState extends ConsumerState<PostItem> {
     final post = posts[idx];
     final updated = Post(
       id: post.id,
+      userId: post.userId,
       author: post.author,
       content: post.content,
       imageUrl: post.imageUrl,
@@ -85,23 +87,7 @@ class _PostItemState extends ConsumerState<PostItem> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                post.authorImage != null
-                  ? CircleAvatar(
-                      radius: 20,
-                      backgroundImage: post.authorImage!.startsWith('http')
-                          ? NetworkImage(post.authorImage!)
-                          : (File(post.authorImage!).existsSync()
-                              ? FileImage(File(post.authorImage!))
-                              : null),
-                      child: (post.authorImage!.startsWith('http') || File(post.authorImage!).existsSync())
-                          ? null
-                          : Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    )
-                  : CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey[800],
-                      child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
+                _buildAuthorAvatar(post, initials),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -143,9 +129,9 @@ class _PostItemState extends ConsumerState<PostItem> {
                                     )
                                   : (File(post.imageUrl!).existsSync()
                                       ? Image.file(
-                                          File(post.imageUrl!),
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 64, color: Colors.white),
+                                File(post.imageUrl!),
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 64, color: Colors.white),
                                         )
                                       : const Icon(Icons.broken_image, size: 64, color: Colors.white)),
                             ),
@@ -178,11 +164,11 @@ class _PostItemState extends ConsumerState<PostItem> {
                             )
                           : (File(post.imageUrl!).existsSync()
                               ? Image.file(
-                                  File(post.imageUrl!),
-                                  height: 200,
-                                  width: double.infinity,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
+                        File(post.imageUrl!),
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 48),
                                 )
                               : const Icon(Icons.broken_image, size: 48)),
                     ),
@@ -262,6 +248,26 @@ class _PostItemState extends ConsumerState<PostItem> {
     );
   }
 
+  Widget _buildAuthorAvatar(Post post, String initials) {
+    if (post.authorImage != null && File(post.authorImage!).existsSync()) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundImage: FileImage(File(post.authorImage!)),
+      );
+    } else if (post.authorImageBase64 != null) {
+      return CircleAvatar(
+        radius: 20,
+        backgroundImage: MemoryImage(base64Decode(post.authorImageBase64!)),
+      );
+    } else {
+      return CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.grey[800],
+        child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      );
+    }
+  }
+
   String _formatTime(DateTime time) {
     final now = DateTime.now();
     final diff = now.difference(time);
@@ -281,6 +287,7 @@ class _PostItemState extends ConsumerState<PostItem> {
       ),
       builder: (context) {
         final controller = TextEditingController();
+        final profile = ref.read(profileProvider).value;
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -311,7 +318,7 @@ class _PostItemState extends ConsumerState<PostItem> {
                         itemCount: post.comments.length,
                         itemBuilder: (context, idx) {
                           final comment = post.comments[post.comments.length - 1 - idx];
-                          final isMine = comment.author == post.author;
+                          final isMine = profile != null && comment.author == profile.name;
                           return Container(
                             margin: const EdgeInsets.symmetric(vertical: 6),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -319,18 +326,30 @@ class _PostItemState extends ConsumerState<PostItem> {
                               color: isMine ? Colors.blueGrey[800] : Colors.grey[850],
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Column(
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Text(comment.author, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                                    const SizedBox(width: 8),
-                                    Text(DateFormat('MM.dd HH:mm').format(comment.createdAt), style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                                  ],
+                                if (comment.authorImage != null && File(comment.authorImage!).existsSync())
+                                  CircleAvatar(radius: 14, backgroundImage: FileImage(File(comment.authorImage!)))
+                                else
+                                  const CircleAvatar(radius: 14, child: Icon(Icons.person, size: 16)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(comment.author, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                          const SizedBox(width: 8),
+                                          Text(DateFormat('MM.dd HH:mm').format(comment.createdAt), style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(comment.content, style: const TextStyle(color: Colors.white)),
+                                    ],
+                                  ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(comment.content, style: const TextStyle(color: Colors.white)),
                               ],
                             ),
                           );
@@ -355,12 +374,12 @@ class _PostItemState extends ConsumerState<PostItem> {
                         ),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
-                      onSubmitted: (value) => _addComment(post, controller, context),
+                      onSubmitted: (value) => _addComment(post, controller, context, profile),
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.send, color: Colors.blueAccent),
-                    onPressed: () => _addComment(post, controller, context),
+                    onPressed: () => _addComment(post, controller, context, profile),
                   ),
                 ],
               ),
@@ -372,7 +391,7 @@ class _PostItemState extends ConsumerState<PostItem> {
     );
   }
 
-  void _addComment(Post post, TextEditingController controller, BuildContext context) async {
+  void _addComment(Post post, TextEditingController controller, BuildContext context, ProfileData? profile) async {
     final text = controller.text.trim();
     if (text.isEmpty) return;
     final posts = ref.read(postsProvider);
@@ -380,12 +399,14 @@ class _PostItemState extends ConsumerState<PostItem> {
     if (idx == -1) return;
     final newComment = Comment(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      author: post.author, // 실제 앱에서는 로그인 사용자명 사용
+      author: profile?.name ?? '익명',
       content: text,
       createdAt: DateTime.now(),
+      authorImage: profile?.imagePath,
     );
     final updated = Post(
       id: post.id,
+      userId: post.userId,
       author: post.author,
       content: post.content,
       imageUrl: post.imageUrl,
@@ -402,6 +423,7 @@ class _PostItemState extends ConsumerState<PostItem> {
     await ref.read(postsProvider.notifier).setPosts(updatedPosts);
     controller.clear();
     FocusScope.of(context).unfocus();
+    Navigator.of(context).pop();
   }
 }
 

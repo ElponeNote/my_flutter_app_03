@@ -9,7 +9,12 @@
 
 이 Flutter 소셜 네트워크 앱의 주요 개선 이력과 현재 구현 상태를 아래와 같이 정리합니다. (2024년 6월 기준)
 
----
+### [2024-06-09] 구조적 개선
+- ProfileData와 Post 모델에 userId(고유 식별자) 필드 도입
+- 내 게시글 필터링을 userId로만 수행 (프로필 정보 변경과 무관하게 내 게시글 유지)
+- 프로필/게시글 이미지 저장 시 파일명에 userId와 timestamp를 포함하여 중복/덮어쓰기 방지
+- 기존 더미 데이터 및 저장된 게시글은 userId가 없으면 빈 문자열로 보정
+- (마이그레이션) 기존 내 게시글은 userId가 다를 수 있으니, 새로 작성한 게시글부터 정상 동작
 
 ### 1. 홈 탭 헤더 개선
 - AppBar 타이틀을 '스쿨코리아'로, 배경색을 검정색(black)으로 통일.
@@ -148,3 +153,48 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+# 프로젝트 작업 내역 및 참고사항
+
+## 1. 홈 탭 헤더 수정
+- 헤더 색상을 블랙으로, 타이틀을 '스쿨코리아'로 변경
+
+## 2. 프로필 정보(이름/사진) 영구 저장
+- StateProvider → StateNotifierProvider 구조로 변경
+- shared_preferences를 이용해 프로필 정보(이름, 소개글, 이미지) 영구 저장/불러오기
+- ProfileData에 toJson/fromJson 추가
+- 저장/불러오기 로직 반영
+
+## 3. 게시글(Post) 영구 저장
+- postsProvider를 StateNotifierProvider로 변경
+- Post 모델에 toJson/fromJson 추가
+- shared_preferences를 이용해 게시글 리스트 영구 저장/불러오기
+- 게시글 추가/삭제/수정 시마다 저장
+
+## 4. 더미 데이터 완전 제거
+- loadPostsFromPrefs에서 더미 데이터 생성 코드 제거
+- 무한 스크롤 시 더미 게시글 추가 로직 제거
+- 이제 실제 작성한 게시글만 저장/불러오기/노출됨
+
+## 5. shared_preferences 초기화(더미 데이터 삭제)
+- 기존에 남아있던 더미 데이터(posts)를 완전히 삭제하기 위해 main.dart에 clearPostsPrefs() 임시 추가
+- 앱 실행 시 shared_preferences의 posts 데이터가 삭제됨을 확인
+- 정상 동작 후 해당 코드 삭제
+
+## 6. 시뮬레이터/기기 테스트 팁
+- iOS 시뮬레이터에서는 카메라 기능 사용 불가 (Camera not available 에러는 정상)
+- 시뮬레이터에서 비디오 업로드 시 "No Videos"가 뜨면, Mac에서 비디오 파일을 시뮬레이터로 드래그&드롭하여 사진 앱에 추가
+- 실제 기기에서는 갤러리/카메라/비디오 모두 정상 동작
+
+## 7. UI/UX 개선
+- 프로필 상단 Row overflow(버튼 잘림) 문제: Flexible/Expanded/ConstrainedBox로 감싸고 버튼 크기 제한
+- 소개글 입력 UX 개선: 입력란 클릭 시 예시문구 자동 삭제
+- 로딩 중에는 CircularProgressIndicator 표시
+
+## 8. 기타 참고사항
+- 앱 재시작/핫 리스타트/핫 리로드 동작 차이점 숙지
+- 데이터 구조 변경 시 마이그레이션 필요할 수 있음
+
+---
+
+**이 문서는 모든 주요 작업 내역을 기록하며, 다음 작업 시 반드시 참고하세요.**

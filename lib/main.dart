@@ -9,8 +9,11 @@ import 'screens/activity_screen.dart';
 import 'screens/profile_screen.dart';
 import 'widgets/bottom_nav_bar.dart';
 import 'utils/dummy_data.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProviderScope(child: MyApp()));
 }
 

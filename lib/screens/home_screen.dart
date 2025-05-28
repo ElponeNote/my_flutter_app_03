@@ -31,15 +31,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final newItems = posts.skip(pageKey).take(_pageSize).toList();
     final isLastPage = pageKey + newItems.length >= posts.length;
     if (isLastPage) {
-      // 더미 게시글 3개 추가 생성 (비동기 처리로 provider 수정 타이밍 오류 방지)
-      Future.microtask(() async {
-        final newRandomPosts = generateDummyPosts(_pageSize, startId: posts.length);
-        final updatedPosts = [...posts, ...newRandomPosts];
-        await ref.read(postsProvider.notifier).setPosts(updatedPosts);
-        final moreItems = updatedPosts.skip(pageKey).take(_pageSize).toList();
-        final nextPageKey = pageKey + moreItems.length;
-        _pagingController.appendPage(moreItems, nextPageKey);
-      });
+      // 더미 게시글 추가 없이 마지막 페이지 처리
+      _pagingController.appendLastPage(newItems);
     } else {
       final nextPageKey = pageKey + newItems.length;
       _pagingController.appendPage(newItems, nextPageKey);
@@ -84,10 +77,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             itemBuilder: (context, post, index) => PostItem(post: post),
             noItemsFoundIndicatorBuilder: (context) => const Center(child: Text('게시글이 없습니다.')),
             firstPageProgressIndicatorBuilder: (context) =>
-              ListView.builder(
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 3,
-                itemBuilder: (context, index) => const SkeletonPostItem(),
+              Column(
+                children: List.generate(3, (_) => const SkeletonPostItem()),
               ),
             newPageProgressIndicatorBuilder: (context) => const Center(child: CircularProgressIndicator()),
             firstPageErrorIndicatorBuilder: (context) => const Center(child: Text('피드를 불러오지 못했습니다.')),

@@ -5,6 +5,8 @@ import '../models/post.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/profile_screen.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:convert';
 
 class PostScreen extends ConsumerStatefulWidget {
   final void Function(Post post) onPost;
@@ -71,17 +73,46 @@ class _PostScreenState extends ConsumerState<PostScreen> {
       setState(() => _isPosting = false);
       return;
     }
+    String? imagePath;
+    String? imageBase64;
+    if (_imageFile != null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'post_${profile.userId}_$timestamp.jpg';
+      final savedPath = '${appDir.path}/$fileName';
+      final savedFile = await _imageFile!.copy(savedPath);
+      imagePath = savedFile.path;
+      final bytes = await savedFile.readAsBytes();
+      imageBase64 = base64Encode(bytes);
+    }
+    String? authorImageBase64 = profile.imageBase64;
+    if (profile.imagePath != null && File(profile.imagePath!).existsSync()) {
+      final bytes = await File(profile.imagePath!).readAsBytes();
+      authorImageBase64 = base64Encode(bytes);
+    }
+    String? videoPath;
+    if (_videoFile != null) {
+      final appDir = await getApplicationDocumentsDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'post_${profile.userId}_$timestamp.mp4';
+      final savedPath = '${appDir.path}/$fileName';
+      final savedFile = await _videoFile!.copy(savedPath);
+      videoPath = savedFile.path;
+    }
     final post = Post(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
+      userId: profile.userId,
       author: profile.name,
       content: text,
-      imageUrl: _imageFile?.path,
-      videoUrl: _videoFile?.path,
+      imageUrl: imagePath,
+      imageBase64: imageBase64,
+      videoUrl: videoPath,
       authorImage: profile.imagePath,
+      authorImageBase64: authorImageBase64,
       authorBio: profile.bio,
       createdAt: DateTime.now(),
     );
-    await Future.delayed(const Duration(milliseconds: 600)); // UX용 딜레이
+    await Future.delayed(const Duration(milliseconds: 600));
     widget.onPost(post);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
