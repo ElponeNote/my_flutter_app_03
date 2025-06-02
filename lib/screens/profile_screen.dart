@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:developer';
 
 import '../utils/dummy_data.dart';
 
@@ -47,17 +48,17 @@ class ProfileNotifier extends AsyncNotifier<ProfileData> {
   Future<ProfileData> build() async {
     final prefs = await SharedPreferences.getInstance();
     String? userId = prefs.getString('userId');
-    print('[ProfileNotifier] shared_preferences userId: $userId');
+    log('[ProfileNotifier] shared_preferences userId: $userId');
     if (userId == null) {
       userId = const Uuid().v4();
       await prefs.setString('userId', userId);
-      print('[ProfileNotifier] 새 userId 생성 및 저장: $userId');
+      log('[ProfileNotifier] 새 userId 생성 및 저장: $userId');
     }
     final jsonString = prefs.getString('profile');
-    print('[ProfileNotifier] profile jsonString: $jsonString');
+    log('[ProfileNotifier] profile jsonString: $jsonString');
     if (jsonString != null) {
       final data = ProfileData.fromJson(json.decode(jsonString));
-      print('[ProfileNotifier] ProfileData.fromJson: userId=${data.userId}, name=${data.name}, bio=${data.bio}, imagePath=${data.imagePath}');
+      log('[ProfileNotifier] ProfileData.fromJson: userId=${data.userId}, name=${data.name}, bio=${data.bio}, imagePath=${data.imagePath}');
       if (data.imagePath != null) {
         final file = File(data.imagePath!);
         if (!file.existsSync() || data.imagePath!.contains('/tmp/') || data.imagePath!.contains('/cache/')) {
@@ -82,7 +83,7 @@ class ProfileNotifier extends AsyncNotifier<ProfileData> {
       }
       // userId 보정
       if (data.userId != userId) {
-        print('[ProfileNotifier] userId 보정: 기존=${data.userId}, prefs=$userId');
+        log('[ProfileNotifier] userId 보정: 기존=${data.userId}, prefs=$userId');
         data.name = data.name;
         data.bio = data.bio;
         data.imagePath = data.imagePath;
@@ -90,12 +91,12 @@ class ProfileNotifier extends AsyncNotifier<ProfileData> {
       }
       return data;
     }
-    print('[ProfileNotifier] profile 데이터 없음, 새 ProfileData 생성');
+    log('[ProfileNotifier] profile 데이터 없음, 새 ProfileData 생성');
     return ProfileData(userId: userId);
   }
 
   Future<void> saveProfile(ProfileData profile) async {
-    print('[ProfileNotifier] saveProfile: userId=${profile.userId}, name=${profile.name}, bio=${profile.bio}, imagePath=${profile.imagePath}');
+    log('[ProfileNotifier] saveProfile: userId=${profile.userId}, name=${profile.name}, bio=${profile.bio}, imagePath=${profile.imagePath}');
     state = const AsyncValue.loading();
     final prefs = await SharedPreferences.getInstance();
     String? imageBase64 = profile.imageBase64;
@@ -203,6 +204,7 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                     );
+                    if (!context.mounted) return;
                     if (result is ProfileData) {
                             await ref.read(profileProvider.notifier).saveProfile(result);
                     }
@@ -287,7 +289,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() {
         _imagePath = savedFile.path;
       });
-      // 프로필 즉시 저장
+      if (!mounted) return;
       final container = ProviderScope.containerOf(context, listen: false);
       final profileAsync = container.read(profileProvider);
       final profile = profileAsync is AsyncData<ProfileData> ? profileAsync.value : null;

@@ -421,6 +421,7 @@ class _PostItemState extends ConsumerState<PostItem> {
     final updatedPosts = [...posts];
     updatedPosts[idx] = updated;
     await ref.read(postsProvider.notifier).setPosts(updatedPosts);
+    if (!context.mounted) return;
     controller.clear();
     FocusScope.of(context).unfocus();
     Navigator.of(context).pop();

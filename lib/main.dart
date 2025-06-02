@@ -9,8 +9,6 @@ import 'screens/activity_screen.dart';
 import 'screens/profile_screen.dart';
 import 'widgets/bottom_nav_bar.dart';
 import 'utils/dummy_data.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +59,7 @@ class _MyAppState extends ConsumerState<MyApp> {
               child: PostScreen(
                 onPost: (post) async {
                   await ref.read(postsProvider.notifier).addPost(post);
+                  if (!context.mounted) return;
                   context.go('/home');
                 },
               ),

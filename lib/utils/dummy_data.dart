@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
+import 'dart:developer';
 
 final faker = Faker();
 
@@ -43,12 +44,12 @@ List<Post> generateDummyPosts(int count, {int? startId}) {
 
 class PostListNotifier extends StateNotifier<List<Post>> {
   PostListNotifier() : super([]) {
-    print('[PostListNotifier] 생성자 호출');
+    log('[PostListNotifier] 생성자 호출');
     _load();
   }
 
   Future<void> _load() async {
-    print('[PostListNotifier] _load() 호출');
+    log('[PostListNotifier] _load() 호출');
     state = await loadPostsFromPrefs();
 
     // userId 마이그레이션: 내 예전 게시글의 userId를 현재 userId로 맞춤
@@ -116,25 +117,25 @@ List<Post> postsFromJson(String jsonStr) => (json.decode(jsonStr) as List).map((
 
 Future<void> savePostsToPrefs(List<Post> posts) async {
   final prefs = await SharedPreferences.getInstance();
-  print('[savePostsToPrefs] posts.length: \x1B[33m${posts.length}[0m');
+  log('[savePostsToPrefs] posts.length: [33m${posts.length}[0m');
   await prefs.setString('posts', postsToJson(posts));
-  print('[savePostsToPrefs] 저장 완료');
+  log('[savePostsToPrefs] 저장 완료');
 }
 
 Future<List<Post>> loadPostsFromPrefs() async {
   final prefs = await SharedPreferences.getInstance();
   final jsonStr = prefs.getString('posts');
-  print('[loadPostsFromPrefs] posts 존재 여부: \x1B[33m${jsonStr != null}\x1B[0m');
+  log('[loadPostsFromPrefs] posts 존재 여부: [33m${jsonStr != null}[0m');
   List<Post> posts;
   if (jsonStr != null) {
     posts = postsFromJson(jsonStr);
-    print('[loadPostsFromPrefs] 불러온 posts.length: \x1B[33m${posts.length}\x1B[0m');
+    log('[loadPostsFromPrefs] 불러온 posts.length: [33m${posts.length}[0m');
     for (final post in posts) {
-      print('[loadPostsFromPrefs] post: id=\x1B[33m${post.id}\x1B[0m, author=\x1B[33m${post.author}\x1B[0m, content=\x1B[33m${post.content}\x1B[0m');
+      log('[loadPostsFromPrefs] post: id=[33m${post.id}[0m, author=[33m${post.author}[0m, content=[33m${post.content}[0m');
     }
   } else {
     posts = [];
-    print('[loadPostsFromPrefs] 저장된 posts 없음, 빈 리스트 반환');
+    log('[loadPostsFromPrefs] 저장된 posts 없음, 빈 리스트 반환');
   }
   for (final post in posts) {
     // imageUrl 복구
